@@ -12,13 +12,22 @@ canvas = tk.Canvas(root, width=BOX_SIZE * GRID_WIDTH, height=BOX_SIZE * GRID_HEI
 canvas.pack()
 
 grid_rects = []
-
 direction_locked = False
 score = 0
+snake_length = 3
+snake_body = []
+direction = "d"  # initial right
+apple_rect = None
+game_running = True
 
 # Score label
 score_label = tk.Label(root, text=f"Score: {score}", font=("Arial", 16))
 score_label.pack()
+
+# Restart button (hidden initially)
+restart_button = tk.Button(root, text="Restart", font=("Arial", 14), command=lambda: restart_game())
+restart_button.pack_forget()
+
 
 # Create grid of rectangles with checkered pattern
 for row in range(GRID_HEIGHT):
@@ -33,40 +42,28 @@ for row in range(GRID_HEIGHT):
         row_rects.append(rect)
     grid_rects.append(row_rects)
 
-# Create snake
-snake_length = 3
-snake_body = []
-for i in range(snake_length):
-    snake_row = GRID_HEIGHT // 2
-    snake_col = GRID_WIDTH // 2 - i - 4
-    snake_x1 = snake_col * BOX_SIZE
-    snake_y1 = snake_row * BOX_SIZE
-    snake_x2 = snake_x1 + BOX_SIZE
-    snake_y2 = snake_y1 + BOX_SIZE
-    rect = canvas.create_rectangle(snake_x1, snake_y1, snake_x2, snake_y2, fill="#4287f5", outline="lightgrey")
-    snake_body.append(rect)
 
-direction = "d"  # Initial direction: right
-
-# Place apple initially in the middle
-apple_row = GRID_HEIGHT // 2
-apple_col = GRID_WIDTH // 2
-apple_x1 = apple_col * BOX_SIZE
-apple_y1 = apple_row * BOX_SIZE
-apple_x2 = apple_x1 + BOX_SIZE
-apple_y2 = apple_y1 + BOX_SIZE
-apple_rect = canvas.create_oval(apple_x1, apple_y1, apple_x2, apple_y2, fill="red", outline="")
+def setup_snake():
+    global snake_body
+    snake_body.clear()
+    for i in range(snake_length):
+        snake_row = GRID_HEIGHT // 2
+        snake_col = GRID_WIDTH // 2 - i - 4
+        snake_x1 = snake_col * BOX_SIZE
+        snake_y1 = snake_row * BOX_SIZE
+        snake_x2 = snake_x1 + BOX_SIZE
+        snake_y2 = snake_y1 + BOX_SIZE
+        rect = canvas.create_rectangle(snake_x1, snake_y1, snake_x2, snake_y2, fill="#4287f5", outline="lightgrey")
+        snake_body.append(rect)
 
 
 def move_apple():
-    global apple_row, apple_col, apple_x1, apple_y1
+    global apple_rect, apple_x1, apple_y1
     while True:
         apple_row = random.randint(0, GRID_HEIGHT - 1)
         apple_col = random.randint(0, GRID_WIDTH - 1)
         new_x1 = apple_col * BOX_SIZE
         new_y1 = apple_row * BOX_SIZE
-
-        # Make sure apple doesn't spawn on the snake:
         overlap = False
         for rect in snake_body:
             coords = canvas.coords(rect)
@@ -75,26 +72,39 @@ def move_apple():
                 break
         if not overlap:
             break
-
-    apple_x1 = new_x1  # update apple position globals!
+    apple_x1 = new_x1
     apple_y1 = new_y1
-
     new_x2 = apple_x1 + BOX_SIZE
     new_y2 = apple_y1 + BOX_SIZE
     canvas.coords(apple_rect, apple_x1, apple_y1, new_x2, new_y2)
 
 
+def game_over(message):
+    global game_running
+    game_running = False
+    canvas.create_text(
+        BOX_SIZE * GRID_WIDTH // 2,
+        BOX_SIZE * GRID_HEIGHT // 2,
+        text=message,
+        fill="red",
+        font=("Arial", 24),
+        tags="gameover"
+    )
+    restart_button.pack()
+
+
 def move_snake():
-    global direction_locked, snake_length, score
-    direction_locked = False  # Allow direction change again
+    global direction_locked, snake_length, score, game_running
+    if not game_running:
+        return
+
+    direction_locked = False
     global snake_body, direction
 
-    # Get current head position (snake_body[0] is head)
     head_rect = snake_body[0]
     head_coords = canvas.coords(head_rect)
     head_x1, head_y1, head_x2, head_y2 = head_coords
 
-    # Calculate new head position based on direction
     if direction == "w":
         new_head_y1 = head_y1 - BOX_SIZE
         new_head_y2 = head_y2 - BOX_SIZE
@@ -116,54 +126,73 @@ def move_snake():
         new_head_y1 = head_y1
         new_head_y2 = head_y2
 
-    # Check boundaries
     if new_head_x1 < 0 or new_head_x2 > BOX_SIZE * GRID_WIDTH or new_head_y1 < 0 or new_head_y2 > BOX_SIZE * GRID_HEIGHT:
-        print("Game Over! Snake hit the wall.")
-        return  # stop moving
+        game_over("Game Over! Snake hit the wall.")
+        return
 
-    # Check self collision
     for rect in snake_body:
         coords = canvas.coords(rect)
         if coords[0] == new_head_x1 and coords[1] == new_head_y1:
-            print("Game Over! Snake collided with itself.")
+            game_over("Game Over! Snake collided with itself.")
             return
 
-    # Insert new head at new position (create new rectangle)
     new_head_rect = canvas.create_rectangle(new_head_x1, new_head_y1, new_head_x2, new_head_y2, fill="#4287f5", outline="lightgrey")
     snake_body.insert(0, new_head_rect)
 
-    # Check if snake ate the apple
     if new_head_x1 == apple_x1 and new_head_y1 == apple_y1:
         snake_length += 1
         score += 1
         score_label.config(text=f"Score: {score}")
-        move_apple()  # move apple to new spot
+        move_apple()
     else:
-        # Remove tail if no eating (keep length)
         if len(snake_body) > snake_length:
             tail_rect = snake_body.pop()
             canvas.delete(tail_rect)
 
-    # Schedule next move
-    root.after(250, move_snake)
+    speed = max(100, 250 - score * 10)  # Dynamische Geschwindigkeit
+    root.after(speed, move_snake)
+
 
 def change_direction(event):
     global direction, direction_locked
-    if direction_locked:
-        return  # Ignore key presses if direction is locked
-
-    if event.keysym in ("w", "a", "s", "d"):
-        # Prevent the snake from reversing direction
-        if (direction == "w" and event.keysym != "s") or \
-           (direction == "s" and event.keysym != "w") or \
-           (direction == "a" and event.keysym != "d") or \
-           (direction == "d" and event.keysym != "a"):
-            direction = event.keysym
+    if direction_locked or not game_running:
+        return
+    keys = {"Up": "w", "Down": "s", "Left": "a", "Right": "d"}
+    key = keys.get(event.keysym, event.keysym)
+    if key in ("w", "a", "s", "d"):
+        if (direction == "w" and key != "s") or \
+           (direction == "s" and key != "w") or \
+           (direction == "a" and key != "d") or \
+           (direction == "d" and key != "a"):
+            direction = key
             direction_locked = True
+
+
+def restart_game():
+    global snake_body, snake_length, direction, score, game_running
+    for rect in snake_body:
+        canvas.delete(rect)
+    snake_body.clear()
+    canvas.delete("gameover")
+    snake_length = 3
+    direction = "d"
+    score = 0
+    score_label.config(text=f"Score: {score}")
+    restart_button.pack_forget()
+    game_running = True
+    setup_snake()
+    move_apple()
+    move_snake()
+
 
 root.bind("<Key>", change_direction)
 
-# Start moving snake
+# Setup initial state
+setup_snake()
+apple_x1 = apple_y1 = 0
+apple_x2 = apple_y2 = 0
+apple_rect = canvas.create_oval(0, 0, BOX_SIZE, BOX_SIZE, fill="red", outline="")
+move_apple()
 move_snake()
 
 root.mainloop()
