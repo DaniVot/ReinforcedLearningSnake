@@ -10,19 +10,22 @@ import matplotlib.pyplot as plt
 
 # === CONFIG ===
 BOX_SIZE = 30
-GRID_WIDTH = 17
-GRID_HEIGHT = 15
+GRID_WIDTH = 17 # default 17
+GRID_HEIGHT = 15 # default 15
 TRAINING_MODE = False  # True = no visuals, just AI training
 LOAD_MODEL = True  # Load an existing trained model
-MODEL_PATH = "model_ep4500.pth"  # Name of the model to load or save
+MODEL_PATH = "model.pth"  # Name of the model to load or save
 SPEED = 1 if TRAINING_MODE else 50
 
-EPISODES = 6000 # Number of episodes for training
+EPISODES = 3000 # Number of episodes for training
 
 # === REWARDS ===
-MOVE_LOITER_PENALTY = -0.05
+MOVE_LOITER_PENALTY = -1
 COLLISION_PENALTY = -20
 APPLE_REWARD = 30
+LOOP_PENALTY = -3  # Penalty for repetitive movement patterns
+LOOP_WINDOW = 15   # Number of steps to look back for loops
+MIN_LOOP_LENGTH = 3  # Minimum length of action sequence to consider for loops
 
 # Exploration parameters
 EPSILON_DECAY = 0.999  # Decay rate for epsilon, default is 0.995
@@ -122,7 +125,9 @@ direction = "d"
 game_running = True
 move_reward = 0
 episode_reward = 0
-apple_pos = (0, 0)  # Track apple position as (col, row)
+apple_pos = (0, 0)
+action_history = deque(maxlen=LOOP_WINDOW)
+position_history = deque(maxlen=LOOP_WINDOW)
 
 # === TK INTERFACE === (Only when not in training mode)
 if not TRAINING_MODE:
@@ -215,9 +220,10 @@ def move_apple():
         apple_pos = (col, row)
 
 def setup_snake():
-    global snake_body, snake_length
+    global snake_body, snake_length, action_history, position_history
     if TRAINING_MODE:
         snake_body = [(GRID_WIDTH // 2 - i - 4, GRID_HEIGHT // 2) for i in range(snake_length)]
+        initial_head = snake_body[0]
     else:
         snake_body.clear()
         for i in range(snake_length):
@@ -227,6 +233,12 @@ def setup_snake():
             y1 = row * BOX_SIZE
             rect = canvas.create_rectangle(x1, y1, x1 + BOX_SIZE, y1 + BOX_SIZE, fill="#4287f5", outline="lightgrey")
             snake_body.append(rect)
+        initial_head = (GRID_WIDTH // 2 - 4, GRID_HEIGHT // 2)
+
+    # Reset tracking histories
+    action_history.clear()
+    position_history.clear()
+    position_history.append(initial_head)
 
 def get_state():
     if TRAINING_MODE:
@@ -304,13 +316,19 @@ def game_over():
         agent.save_model()
 
 def game_loop():
-    global score, move_reward, episode_reward, snake_length, game_running, snake_body, MOVE_LOITER_PENALTY, APPLE_REWARD, COLLISION_PENALTY
+    global score, move_reward, episode_reward, snake_length, game_running, snake_body, MOVE_LOITER_PENALTY, APPLE_REWARD, COLLISION_PENALTY, LOOP_PENALTY, LOOP_WINDOW, MIN_LOOP_LENGTH, action_history, position_history
     if not game_running:
         return
 
     state = get_state()
     action = agent.act(state)
     apply_action(action)
+
+    # Store current action and position
+    current_position = snake_body[0] if TRAINING_MODE else (
+        int(canvas.coords(snake_body[0])[0] // BOX_SIZE),
+        int(canvas.coords(snake_body[0])[1] // BOX_SIZE)
+    )
 
     # Calculate new head position
     if TRAINING_MODE:
@@ -360,6 +378,30 @@ def game_loop():
                 snake_body.pop()
         move_reward = MOVE_LOITER_PENALTY
 
+        # Loop detection logic
+        position_history.append(new_head)
+        action_history.append(action)
+
+        # Check for positional loops
+        position_loop_penalty = 0
+        if len(position_history) >= LOOP_WINDOW:
+            unique_positions = len(set(position_history))
+            if unique_positions < LOOP_WINDOW / 3:  # Repeating small set of positions
+                position_loop_penalty = LOOP_PENALTY * (LOOP_WINDOW - unique_positions)
+
+        # Check for action pattern repetition
+        action_loop_penalty = 0
+        if len(action_history) >= MIN_LOOP_LENGTH:
+            last_actions = list(action_history)[-MIN_LOOP_LENGTH:]
+            if all(a == action for a in last_actions):  # Same action repeated
+                action_loop_penalty = LOOP_PENALTY * MIN_LOOP_LENGTH
+
+        # Apply penalties
+        total_penalty = position_loop_penalty + action_loop_penalty
+        if total_penalty < 0:
+            move_reward += total_penalty
+            episode_reward += total_penalty
+
     # Update agent
     new_state = get_state()
     episode_reward += move_reward
@@ -371,14 +413,16 @@ def game_loop():
 
 def restart_game():
     global score, snake_length, snake_body, direction, game_running, move_reward, episode_reward
+    global action_history, position_history
     score, snake_length, move_reward, episode_reward = 0, 3, 0, 0
     direction = "d"
     game_running = True
+    action_history.clear()
+    position_history.clear()
 
     if not TRAINING_MODE:
         for segment in snake_body:
             canvas.delete(segment)
-        # Delete the game over text
         canvas.delete("game_over")
 
     setup_snake()
