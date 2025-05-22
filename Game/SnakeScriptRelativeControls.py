@@ -219,6 +219,49 @@ def game_over(message):
     )
     restart_button.pack()
 
+def get_state():
+    head_x, head_y, _, _ = canvas.coords(snake_body[0])
+    hc = head_x // BOX_SIZE
+    hr = head_y // BOX_SIZE
+    ac = apple_x1 // BOX_SIZE
+    ar = apple_y1 // BOX_SIZE
+
+    walls, body = calculate_distances(head_x, head_y)
+    apple_fwd, apple_side = get_apple_direction(hc, hr, ac, ar, direction)
+
+    max_dist = max(GRID_WIDTH, GRID_HEIGHT)
+    state = [
+        walls[0] / max_dist,  # ahead
+        walls[1] / max_dist,  # left
+        walls[2] / max_dist,  # right
+        body['ahead'] / max_dist,
+        body['left'] / max_dist,
+        body['right'] / max_dist,
+        apple_fwd / max_dist,
+        apple_side / max_dist
+    ]
+    return state
+
+def ai_decision(state):
+    # Simple hardcoded logic for testing (replace with NN later)
+    _, _, _, _, _, _, apple_fwd, apple_side = state
+
+    if apple_side < -0.1:
+        return 0  # Turn left
+    elif apple_side > 0.1:
+        return 2  # Turn right
+    else:
+        return 1  # Go straight
+
+
+def apply_action(action):
+    global direction
+    turn_map = {
+        0: {'d': 'w', 'w': 'a', 'a': 's', 's': 'd'},  # Turn Left
+        1: {'d': 'd', 'w': 'w', 'a': 'a', 's': 's'},  # Go Straight
+        2: {'d': 's', 's': 'a', 'a': 'w', 'w': 'd'}   # Turn Right
+    }
+    direction = turn_map[action][direction]
 
 def move_snake():
     global direction_locked, snake_length, score, game_running
@@ -228,11 +271,15 @@ def move_snake():
     direction_locked = False
     global snake_body, direction
 
+    update_data_display()
+    state = get_state()
+    action = ai_decision(state)
+    apply_action(action)
+
     head_rect = snake_body[0]
     head_coords = canvas.coords(head_rect)
     head_x1, head_y1, head_x2, head_y2 = head_coords
 
-    update_data_display()
 
     # Calculate new head position based on current direction
     if direction == "w":
