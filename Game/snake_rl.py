@@ -14,19 +14,19 @@ GRID_WIDTH = 17
 GRID_HEIGHT = 15
 TRAINING_MODE = False  # True = no visuals, just AI training
 LOAD_MODEL = True  # Load an existing trained model
-MODEL_PATH = "model.pth"  # Name of the model to load or save
+MODEL_PATH = "model_ep4500.pth"  # Name of the model to load or save
 SPEED = 1 if TRAINING_MODE else 50
 
-EPISODES = 3000 # Number of episodes for training
+EPISODES = 6000 # Number of episodes for training
 
 # === REWARDS ===
-MOVE_LOITER_PENALTY = -0.01
+MOVE_LOITER_PENALTY = -0.05
 COLLISION_PENALTY = -20
 APPLE_REWARD = 30
 
 # Exploration parameters
 EPSILON_DECAY = 0.999  # Decay rate for epsilon, default is 0.995
-TARGET_UPDATE_FREQ = 100  # Frequency of target network updates
+TARGET_UPDATE_FREQ = 50  # Frequency of target network updates
 
 # === METRICS STORAGE ===
 episode_scores = []
@@ -158,26 +158,40 @@ else:
 
 def plot_training_metrics():
     global PLOTTINGFREQ
-    # Compute averages over every x episodes
     window_size = PLOTTINGFREQ
     if len(episode_scores) >= window_size:
         averages_scores = [np.mean(episode_scores[i:i+window_size]) for i in range(0, len(episode_scores), window_size)]
         averages_rewards = [np.mean(episode_rewards[i:i+window_size]) for i in range(0, len(episode_rewards), window_size)]
         x_ticks = list(range(0, len(episode_scores), window_size))
 
-        plt.figure(figsize=(12, 6))
-        plt.plot(x_ticks, averages_scores, label="Average Score (per 100 episodes)", color='blue')
-        plt.plot(x_ticks, averages_rewards, label="Average Reward (per 100 episodes)", color='green')
-        plt.xlabel("Episode")
-        plt.ylabel("Average Score / Reward")
+        fig, ax1 = plt.subplots(figsize=(12, 6))
+
+        # Plot average score on left y-axis
+        ax1.set_xlabel("Episode")
+        ax1.set_ylabel("Average Score", color='blue')
+        ax1.plot(x_ticks, averages_scores, label="Average Score (per {} episodes)".format(window_size), color='blue')
+        ax1.tick_params(axis='y', labelcolor='blue')
+
+        # Create second y-axis for average reward
+        ax2 = ax1.twinx()
+        ax2.set_ylabel("Average Reward", color='green')
+        ax2.plot(x_ticks, averages_rewards, label="Average Reward (per {} episodes)".format(window_size), color='green')
+        ax2.tick_params(axis='y', labelcolor='green')
+
+        # Title and layout
         plt.title("Training Progress")
-        plt.legend()
+        fig.tight_layout()
+
+        # Add legends separately for clarity
+        ax1.legend(loc='upper left')
+        ax2.legend(loc='upper right')
+
         plt.grid(True)
-        plt.tight_layout()
         plt.savefig("training_metrics.png")
         plt.show()
     else:
         print("Not enough episodes to plot training metrics.")
+
 
 # === HELPER FUNCTIONS ===
 def move_apple():
