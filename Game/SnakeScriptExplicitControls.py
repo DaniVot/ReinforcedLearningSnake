@@ -252,7 +252,7 @@ def move_snake():
             old_tail = snake_body.pop()
             canvas.delete(old_tail)
 
-    speed = max(100, 250 - score * 10)
+    speed = 250
     root.after(speed, move_snake)
 
 
