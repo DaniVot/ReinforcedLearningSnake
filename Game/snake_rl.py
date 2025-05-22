@@ -12,17 +12,17 @@ import matplotlib.pyplot as plt
 BOX_SIZE = 30
 GRID_WIDTH = 17
 GRID_HEIGHT = 15
-TRAINING_MODE = True  # True = no visuals, just AI training
-LOAD_MODEL = False  # Load an existing trained model
+TRAINING_MODE = False  # True = no visuals, just AI training
+LOAD_MODEL = True  # Load an existing trained model
 MODEL_PATH = "model.pth"  # Name of the model to load or save
-SPEED = 1 if TRAINING_MODE else 25
+SPEED = 1 if TRAINING_MODE else 50
 
-EPISODES = 1000 # Number of episodes for training
+EPISODES = 3000 # Number of episodes for training
 
 # === REWARDS ===
 MOVE_LOITER_PENALTY = -0.01
 COLLISION_PENALTY = -20
-APPLE_REWARD = 20
+APPLE_REWARD = 30
 
 # Exploration parameters
 EPSILON_DECAY = 0.999  # Decay rate for epsilon, default is 0.995
@@ -32,6 +32,9 @@ TARGET_UPDATE_FREQ = 100  # Frequency of target network updates
 episode_scores = []
 episode_rewards = []
 training_log = []
+
+# === PLOTTING ===
+PLOTTINGFREQ = 20  # Frequency of plotting training metrics
 
 
 # === Q-NETWORK ===
@@ -154,8 +157,9 @@ else:
         apple_pos = (random.randint(0, GRID_WIDTH-1), random.randint(0, GRID_HEIGHT-1))
 
 def plot_training_metrics():
-    # Compute averages over every 100 episodes
-    window_size = 100
+    global PLOTTINGFREQ
+    # Compute averages over every x episodes
+    window_size = PLOTTINGFREQ
     if len(episode_scores) >= window_size:
         averages_scores = [np.mean(episode_scores[i:i+window_size]) for i in range(0, len(episode_scores), window_size)]
         averages_rewards = [np.mean(episode_rewards[i:i+window_size]) for i in range(0, len(episode_rewards), window_size)]
@@ -280,7 +284,7 @@ def game_over():
     global game_running
     game_running = False
     if not TRAINING_MODE:
-        canvas.create_text(GRID_WIDTH * BOX_SIZE // 2, GRID_HEIGHT * BOX_SIZE // 2, text="Game Over", fill="red", font=("Arial", 24))
+        canvas.create_text(GRID_WIDTH * BOX_SIZE // 2, GRID_HEIGHT * BOX_SIZE // 2, text="Game Over", fill="red", font=("Arial", 24), tags="game_over")
         restart_button.pack()
     if TRAINING_MODE:
         agent.save_model()
@@ -360,7 +364,9 @@ def restart_game():
     if not TRAINING_MODE:
         for segment in snake_body:
             canvas.delete(segment)
-        canvas.delete("gameover")
+        # Delete the game over text
+        canvas.delete("game_over")
+
     setup_snake()
     move_apple()
     if not TRAINING_MODE:
