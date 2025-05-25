@@ -12,23 +12,24 @@ import matplotlib.pyplot as plt
 BOX_SIZE = 30
 GRID_WIDTH = 17 # default 17
 GRID_HEIGHT = 15 # default 15
-TRAINING_MODE = False  # True = no visuals, just AI training
-LOAD_MODEL = True  # Load an existing trained model
+TRAINING_MODE = True  # True = no visuals, just AI training
+LOAD_MODEL = False  # Load an existing trained model
 MODEL_PATH = "model.pth"  # Name of the model to load or save
 SPEED = 1 if TRAINING_MODE else 50
 
-EPISODES = 3000 # Number of episodes for training
+EPISODES = 5000 # Number of episodes for training
 
 # === REWARDS ===
-MOVE_LOITER_PENALTY = -1
+MOVE_LOITER_PENALTY = -0.05
 COLLISION_PENALTY = -20
 APPLE_REWARD = 30
-LOOP_PENALTY = -3  # Penalty for repetitive movement patterns
+LOOP_PENALTY = -5  # Penalty for repetitive movement patterns
 LOOP_WINDOW = 15   # Number of steps to look back for loops
 MIN_LOOP_LENGTH = 3  # Minimum length of action sequence to consider for loops
 
 # Exploration parameters
 EPSILON_DECAY = 0.999  # Decay rate for epsilon, default is 0.995
+MIN_EPSILON = 0.01  # Minimum value for epsilon
 TARGET_UPDATE_FREQ = 50  # Frequency of target network updates
 
 # === METRICS STORAGE ===
@@ -68,7 +69,7 @@ class DQNAgent:
         self.gamma = 0.95
         self.epsilon = 1.0
         self.epsilon_decay = EPSILON_DECAY
-        self.epsilon_min = 0.01
+        self.epsilon_min = MIN_EPSILON
 
     def act(self, state):
         if TRAINING_MODE and random.random() < self.epsilon:
@@ -166,6 +167,7 @@ def plot_training_metrics():
     window_size = PLOTTINGFREQ
     if len(episode_scores) >= window_size:
         averages_scores = [np.mean(episode_scores[i:i+window_size]) for i in range(0, len(episode_scores), window_size)]
+        max_scores = [np.max(episode_scores[i:i+window_size]) for i in range(0, len(episode_scores), window_size)]
         averages_rewards = [np.mean(episode_rewards[i:i+window_size]) for i in range(0, len(episode_rewards), window_size)]
         x_ticks = list(range(0, len(episode_scores), window_size))
 
@@ -175,6 +177,7 @@ def plot_training_metrics():
         ax1.set_xlabel("Episode")
         ax1.set_ylabel("Average Score", color='blue')
         ax1.plot(x_ticks, averages_scores, label="Average Score (per {} episodes)".format(window_size), color='blue')
+        ax1.plot(x_ticks, max_scores, label="Max Score (per {} episodes)".format(window_size), color='red')
         ax1.tick_params(axis='y', labelcolor='blue')
 
         # Create second y-axis for average reward
