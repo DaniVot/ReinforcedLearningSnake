@@ -1,0 +1,14 @@
+EPISODES = 15000 # Number of episodes for training
+
+# === REWARDS ===
+MOVE_LOITER_PENALTY = -0.05
+COLLISION_PENALTY = -20
+APPLE_REWARD = 30
+LOOP_PENALTY = -5  # Penalty for repetitive movement patterns
+LOOP_WINDOW = 15   # Number of steps to look back for loops
+MIN_LOOP_LENGTH = 3  # Minimum length of action sequence to consider for loops
+
+# Exploration parameters
+EPSILON_DECAY = 0.999  # Decay rate for epsilon, default is 0.995
+MIN_EPSILON = 0.01  # Minimum value for epsilon
+TARGET_UPDATE_FREQ = 50  # Frequency of target network updates

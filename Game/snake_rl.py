@@ -12,12 +12,12 @@ import matplotlib.pyplot as plt
 BOX_SIZE = 30
 GRID_WIDTH = 17 # default 17
 GRID_HEIGHT = 15 # default 15
-TRAINING_MODE = True  # True = no visuals, just AI training
-LOAD_MODEL = False  # Load an existing trained model
+TRAINING_MODE = False  # True = no visuals, just AI training
+LOAD_MODEL = True  # Load an existing trained model
 MODEL_PATH = "model.pth"  # Name of the model to load or save
-SPEED = 1 if TRAINING_MODE else 50
+SPEED = 1 if TRAINING_MODE else 4
 
-EPISODES = 5000 # Number of episodes for training
+EPISODES = 15000 # Number of episodes for training
 
 # === REWARDS ===
 MOVE_LOITER_PENALTY = -0.05
@@ -40,6 +40,12 @@ training_log = []
 # === PLOTTING ===
 PLOTTINGFREQ = 20  # Frequency of plotting training metrics
 
+# === DEVICE CONFIGURATION ===
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+
+pending_loop = None
 
 # === Q-NETWORK ===
 class QNetwork(nn.Module):
@@ -60,8 +66,8 @@ class DQNAgent:
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
-        self.q_network = QNetwork(state_size, action_size)
-        self.target_network = QNetwork(state_size, action_size)
+        self.q_network = QNetwork(state_size, action_size).to(device)
+        self.target_network = QNetwork(state_size, action_size).to(device)
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
         self.criterion = nn.MSELoss()
         self.memory = deque(maxlen=2000)
@@ -70,12 +76,15 @@ class DQNAgent:
         self.epsilon = 1.0
         self.epsilon_decay = EPSILON_DECAY
         self.epsilon_min = MIN_EPSILON
+        self.target_network.load_state_dict(self.q_network.state_dict())
+        self.target_network.eval()
 
     def act(self, state):
         if TRAINING_MODE and random.random() < self.epsilon:
             return random.randint(0, self.action_size - 1)
         with torch.no_grad():
-            return torch.argmax(self.q_network(torch.tensor(state, dtype=torch.float32))).item()
+            state_tensor = torch.tensor(state, dtype=torch.float32).to(device)
+            return torch.argmax(self.q_network(state_tensor)).item()
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
@@ -86,17 +95,17 @@ class DQNAgent:
         batch = random.sample(self.memory, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
-        states = torch.tensor(states, dtype=torch.float32)
-        actions = torch.tensor(actions, dtype=torch.int64).unsqueeze(1)
-        rewards = torch.tensor(rewards, dtype=torch.float32).unsqueeze(1)
-        next_states = torch.tensor(next_states, dtype=torch.float32)
-        dones = torch.tensor(dones, dtype=torch.float32).unsqueeze(1)
+        states = torch.tensor(states, dtype=torch.float32).to(device)
+        actions = torch.tensor(actions, dtype=torch.int64).unsqueeze(1).to(device)
+        rewards = torch.tensor(rewards, dtype=torch.float32).unsqueeze(1).to(device)
+        next_states = torch.tensor(next_states, dtype=torch.float32).to(device)
+        dones = torch.tensor(dones, dtype=torch.float32).unsqueeze(1).to(device)
 
-        q_values = self.q_network(states).gather(1, actions)
-        next_q_values = self.target_network(next_states).max(1)[0].unsqueeze(1)
-        targets = rewards + self.gamma * next_q_values * (1 - dones)
+        current_q = self.q_network(states).gather(1, actions)
+        next_q = self.target_network(next_states).max(1)[0].unsqueeze(1)
+        target_q = rewards + self.gamma * next_q * (1 - dones)
 
-        loss = self.criterion(q_values, targets)
+        loss = self.criterion(current_q, target_q)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -109,7 +118,7 @@ class DQNAgent:
 
     def load_model(self, path=MODEL_PATH):
         if os.path.exists(path):
-            self.q_network.load_state_dict(torch.load(path))
+            self.q_network.load_state_dict(torch.load(path, map_location=device))
             self.q_network.eval()
             print(f"Loaded model from {path}")
 
@@ -224,6 +233,9 @@ def move_apple():
 
 def setup_snake():
     global snake_body, snake_length, action_history, position_history
+
+    direction = "d"  # Reset to initial direction
+
     if TRAINING_MODE:
         snake_body = [(GRID_WIDTH // 2 - i - 4, GRID_HEIGHT // 2) for i in range(snake_length)]
         initial_head = snake_body[0]
@@ -319,7 +331,7 @@ def game_over():
         agent.save_model()
 
 def game_loop():
-    global score, move_reward, episode_reward, snake_length, game_running, snake_body, MOVE_LOITER_PENALTY, APPLE_REWARD, COLLISION_PENALTY, LOOP_PENALTY, LOOP_WINDOW, MIN_LOOP_LENGTH, action_history, position_history
+    global score, move_reward, episode_reward, snake_length, game_running, snake_body, MOVE_LOITER_PENALTY, APPLE_REWARD, COLLISION_PENALTY, LOOP_PENALTY, LOOP_WINDOW, MIN_LOOP_LENGTH, action_history, position_history, pending_loop
     if not game_running:
         return
 
@@ -405,18 +417,25 @@ def game_loop():
             move_reward += total_penalty
             episode_reward += total_penalty
 
-    # Update agent
-    new_state = get_state()
-    episode_reward += move_reward
-    agent.remember(state, action, move_reward, new_state, False)
-    agent.train()
+    # Only store experiences and train in training mode
+    if TRAINING_MODE:
+        new_state = get_state()
+        episode_reward += move_reward
+        agent.remember(state, action, move_reward, new_state, False)
+        agent.train()
 
-    if not TRAINING_MODE:
-        root.after(SPEED, game_loop)
+    if not TRAINING_MODE and game_running:
+        pending_loop = root.after(SPEED, game_loop)
+
 
 def restart_game():
-    global score, snake_length, snake_body, direction, game_running, move_reward, episode_reward
+    global score, snake_length, snake_body, direction, game_running, move_reward, episode_reward, pending_loop
     global action_history, position_history
+
+    if pending_loop:
+        root.after_cancel(pending_loop)
+        pending_loop = None
+
     score, snake_length, move_reward, episode_reward = 0, 3, 0, 0
     direction = "d"
     game_running = True
@@ -482,7 +501,6 @@ def main():
         move_apple()
         game_loop()
         root.mainloop()
-
 
 if __name__ == "__main__":
     main()
