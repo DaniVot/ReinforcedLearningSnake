@@ -15,7 +15,7 @@ GRID_HEIGHT = 15 # default 15
 TRAINING_MODE = False  # True = no visuals, just AI training
 LOAD_MODEL = True  # Load an existing trained model
 MODEL_PATH = "model.pth"  # Name of the model to load or save
-SPEED = 1 if TRAINING_MODE else 10
+SPEED = 1 if TRAINING_MODE else 50
 
 EPISODES = 15000 # Number of episodes for training
 
@@ -129,6 +129,7 @@ if LOAD_MODEL:
 
 # === GAME STATE ===
 score = 0
+highscore = 0
 snake_length = 3
 snake_body = []
 direction = "d"
@@ -147,6 +148,8 @@ if not TRAINING_MODE:
     canvas.pack()
     score_label = tk.Label(root, text=f"Score: {score}", font=("Arial", 16))
     score_label.pack()
+    highscore_label = tk.Label(root, text=f"Highscore: {highscore}", font=("Arial", 16))
+    highscore_label.pack()
     data_label = tk.Label(root, text="", font=("Arial", 12))
     data_label.pack()
     restart_button = tk.Button(root, text="Restart", font=("Arial", 14), command=lambda: restart_game())
@@ -331,7 +334,7 @@ def game_over():
         agent.save_model()
 
 def game_loop():
-    global score, move_reward, episode_reward, snake_length, game_running, snake_body, MOVE_LOITER_PENALTY, APPLE_REWARD, COLLISION_PENALTY, LOOP_PENALTY, LOOP_WINDOW, MIN_LOOP_LENGTH, action_history, position_history, pending_loop
+    global score, move_reward, episode_reward, snake_length, game_running, snake_body, MOVE_LOITER_PENALTY, APPLE_REWARD, COLLISION_PENALTY, LOOP_PENALTY, LOOP_WINDOW, MIN_LOOP_LENGTH, action_history, position_history, pending_loop, highscore
     if not game_running:
         return
 
@@ -380,10 +383,13 @@ def game_loop():
     # === Check for apple ===
     if new_head == apple_pos:
         score += 1
+        if score > highscore:
+            highscore = score
         move_reward = APPLE_REWARD
         snake_length += 1
         if not TRAINING_MODE:
             score_label.config(text=f"Score: {score}")
+            highscore_label.config(text=f"Highscore: {highscore}")
         move_apple()
     else:
         if len(snake_body) > snake_length:
