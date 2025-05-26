@@ -15,7 +15,7 @@ GRID_HEIGHT = 15 # default 15
 TRAINING_MODE = False  # True = no visuals, just AI training
 LOAD_MODEL = True  # Load an existing trained model
 MODEL_PATH = "model.pth"  # Name of the model to load or save
-SPEED = 1 if TRAINING_MODE else 4
+SPEED = 1 if TRAINING_MODE else 10
 
 EPISODES = 15000 # Number of episodes for training
 
@@ -339,12 +339,6 @@ def game_loop():
     action = agent.act(state)
     apply_action(action)
 
-    # Store current action and position
-    current_position = snake_body[0] if TRAINING_MODE else (
-        int(canvas.coords(snake_body[0])[0] // BOX_SIZE),
-        int(canvas.coords(snake_body[0])[1] // BOX_SIZE)
-    )
-
     # Calculate new head position
     if TRAINING_MODE:
         hc, hr = snake_body[0]
@@ -358,25 +352,32 @@ def game_loop():
     elif direction == 'd': hc += 1
     new_head = (hc, hr)
 
-    # Check collision with walls or body
-    if hc < 0 or hc >= GRID_WIDTH or hr < 0 or hr >= GRID_HEIGHT or new_head in snake_body:
-        move_reward = COLLISION_PENALTY
-        episode_reward += move_reward
-        agent.remember(state, action, move_reward, get_state(), True)
-        agent.train()
-        game_over()
-        #if TRAINING_MODE:
-            # restart_game()  # Reset for next episode
-        return
-
-    # Move snake
+    # === Check for collisions ===
     if TRAINING_MODE:
+        if new_head in snake_body or hc < 0 or hc >= GRID_WIDTH or hr < 0 or hr >= GRID_HEIGHT:
+            move_reward = COLLISION_PENALTY
+            episode_reward += move_reward
+            agent.remember(state, action, move_reward, get_state(), True)
+            agent.train()
+            game_over()
+            return
         snake_body.insert(0, new_head)
     else:
+        if hc < 0 or hc >= GRID_WIDTH or hr < 0 or hr >= GRID_HEIGHT or new_head in [
+            (int(canvas.coords(seg)[0] // BOX_SIZE), int(canvas.coords(seg)[1] // BOX_SIZE)) for seg in snake_body
+        ]:
+            move_reward = COLLISION_PENALTY
+            episode_reward += move_reward
+            agent.remember(state, action, move_reward, get_state(), True)
+            agent.train()
+            game_over()
+            return
         x1 = hc * BOX_SIZE
         y1 = hr * BOX_SIZE
         rect = canvas.create_rectangle(x1, y1, x1 + BOX_SIZE, y1 + BOX_SIZE, fill="#4287f5", outline="lightgrey")
         snake_body.insert(0, rect)
+
+    # === Check for apple ===
     if new_head == apple_pos:
         score += 1
         move_reward = APPLE_REWARD
@@ -393,31 +394,28 @@ def game_loop():
                 snake_body.pop()
         move_reward = MOVE_LOITER_PENALTY
 
-        # Loop detection logic
+        # Loop-Detection
         position_history.append(new_head)
         action_history.append(action)
 
-        # Check for positional loops
         position_loop_penalty = 0
         if len(position_history) >= LOOP_WINDOW:
             unique_positions = len(set(position_history))
-            if unique_positions < LOOP_WINDOW / 3:  # Repeating small set of positions
+            if unique_positions < LOOP_WINDOW / 3:
                 position_loop_penalty = LOOP_PENALTY * (LOOP_WINDOW - unique_positions)
 
-        # Check for action pattern repetition
         action_loop_penalty = 0
         if len(action_history) >= MIN_LOOP_LENGTH:
             last_actions = list(action_history)[-MIN_LOOP_LENGTH:]
-            if all(a == action for a in last_actions):  # Same action repeated
+            if all(a == action for a in last_actions):
                 action_loop_penalty = LOOP_PENALTY * MIN_LOOP_LENGTH
 
-        # Apply penalties
         total_penalty = position_loop_penalty + action_loop_penalty
         if total_penalty < 0:
             move_reward += total_penalty
             episode_reward += total_penalty
 
-    # Only store experiences and train in training mode
+    # Training only if in training mode
     if TRAINING_MODE:
         new_state = get_state()
         episode_reward += move_reward
