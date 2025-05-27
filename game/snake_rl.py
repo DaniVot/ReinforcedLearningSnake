@@ -328,7 +328,7 @@ def game_over():
     global game_running
     game_running = False
     if not TRAINING_MODE:
-        canvas.create_text(GRID_WIDTH * BOX_SIZE // 2, GRID_HEIGHT * BOX_SIZE // 2, text="Game Over", fill="red", font=("Arial", 24), tags="game_over")
+        canvas.create_text(GRID_WIDTH * BOX_SIZE // 2, GRID_HEIGHT * BOX_SIZE // 2, text="game Over", fill="red", font=("Arial", 24), tags="game_over")
         restart_button.pack()
     if TRAINING_MODE:
         agent.save_model()

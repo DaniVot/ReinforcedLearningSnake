@@ -224,14 +224,14 @@ def move_snake():
     # Wall collision check
     if (new_head_x1 < 0 or new_head_x1 >= BOX_SIZE * GRID_WIDTH or
             new_head_y1 < 0 or new_head_y1 >= BOX_SIZE * GRID_HEIGHT):
-        game_over("Game Over! Snake hit the wall.")
+        game_over("game Over! Snake hit the wall.")
         return
 
     # Body collision check
     for rect in snake_body:
         coords = canvas.coords(rect)
         if coords[0] == new_head_x1 and coords[1] == new_head_y1:
-            game_over("Game Over! Snake collided with itself.")
+            game_over("game Over! Snake collided with itself.")
             return
 
     # Create new head
