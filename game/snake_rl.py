@@ -14,22 +14,22 @@ GRID_WIDTH = 17 # default 17
 GRID_HEIGHT = 15 # default 15
 TRAINING_MODE = False  # True = no visuals, just AI training
 LOAD_MODEL = True  # Load an existing trained model
-MODEL_PATH = "models/pptx/Beispiel 4/model.pth"  # Name of the model to load or save
+MODEL_PATH = "models/pptx/Beispiel 5/model.pth"  # Name of the model to load or save
 SPEED = 1 if TRAINING_MODE else 50
 
 EPISODES = 15000 # Number of episodes for training
 
 # === REWARDS ===
-MOVE_LOITER_PENALTY = -0.5
+MOVE_LOITER_PENALTY = -1
 COLLISION_PENALTY = -100
-APPLE_REWARD = 80
-LOOP_PENALTY = -15  # Penalty for repetitive movement patterns
+APPLE_REWARD = 100
+LOOP_PENALTY = -1  # Penalty for repetitive movement patterns
 LOOP_WINDOW = 15   # Number of steps to look back for loops
 MIN_LOOP_LENGTH = 3  # Minimum length of action sequence to consider for loops
 
 # Exploration parameters
-EPSILON_DECAY = 0.9995  # Decay rate for epsilon, default is 0.995
-MIN_EPSILON = 0.05  # Minimum value for epsilon
+EPSILON_DECAY = 0.99945  # Decay rate for epsilon, default is 0.995
+MIN_EPSILON = 0.01  # Minimum value for epsilon
 TARGET_UPDATE_FREQ = 50  # Frequency of target network updates
 
 # === METRICS STORAGE ===
